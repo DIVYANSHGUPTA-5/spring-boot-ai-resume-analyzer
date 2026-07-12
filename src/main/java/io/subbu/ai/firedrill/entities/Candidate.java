@@ -142,4 +142,10 @@ public class Candidate {
      */
     @OneToMany(mappedBy = "candidate", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CandidateExternalProfile> externalProfiles;
+
+    /**
+     * One-to-many relationship with resume embeddings
+     */
+    @OneToMany(mappedBy = "candidate", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ResumeEmbedding> embeddings;
 }

@@ -269,12 +269,36 @@ public class AIService {
     private ResumeAnalysisResponse parseResumeAnalysisResponse(String rawResponse) {
         try {
             String json = extractJson(rawResponse);
-            return objectMapper.readValue(json, ResumeAnalysisResponse.class);
+
+            log.info("=======================================");
+            log.info("EXTRACTED JSON FROM LLM:");
+            log.info(json);
+            log.info("=======================================");
+
+            ResumeAnalysisResponse response =
+                    objectMapper.readValue(json, ResumeAnalysisResponse.class);
+
+            log.info("Parsed Resume Response:");
+            log.info("Name: {}", response.getName());
+            log.info("Email: {}", response.getEmail());
+            log.info("Skills: {}", response.getSkills());
+            log.info("Experience: {}", response.getYearsOfExperience());
+
+            return response;
+
         } catch (LlmServiceException e) {
-            log.warn("LLM unavailable during resume analysis — returning fallback. Reason: {}", e.getMessage());
+            log.error("LLM SERVICE ERROR: {}", e.getMessage(), e);
+
         } catch (Exception e) {
-            log.error("Failed to parse LLM resume-analysis response. Raw response: {}", rawResponse, e);
+            log.error("=======================================");
+            log.error("RAW LLM RESPONSE:");
+            log.error(rawResponse);
+            log.error("=======================================");
+            log.error("JSON PARSE ERROR:", e);
         }
+
+        log.warn("Returning fallback ResumeAnalysisResponse");
+
         return ResumeAnalysisResponse.builder()
                 .name("Unknown")
                 .email("")
@@ -326,24 +350,32 @@ public class AIService {
      */
     private String extractJson(String response) {
         if (response == null || response.isBlank()) {
-            throw new LlmServiceException("LLM returned null or empty response — cannot extract JSON");
+            throw new LlmServiceException(
+                    "LLM returned null or empty response"
+            );
         }
 
-        // Strip markdown code fences that some models emit: ```json ... ```
-        String cleaned = response.replaceAll("(?s)```[a-zA-Z]*\\n?", "").replaceAll("```", "").strip();
+        String cleaned = response
+                .replaceAll("(?s)<think>.*?</think>", "")
+                .replaceAll("(?s)```json", "")
+                .replaceAll("(?s)```", "")
+                .trim();
 
         int start = cleaned.indexOf('{');
-        int end   = cleaned.lastIndexOf('}');
+        int end = cleaned.lastIndexOf('}');
 
         if (start != -1 && end != -1 && end > start) {
             return cleaned.substring(start, end + 1);
         }
 
         throw new LlmServiceException(
-                "No JSON object found in LLM response. Response starts with: "
-                + response.substring(0, Math.min(200, response.length())));
+                "No JSON object found in response: "
+                        + cleaned.substring(
+                        0,
+                        Math.min(200, cleaned.length())
+                )
+        );
     }
-
     // -------------------------------------------------------------------------
     // Private helpers — misc
     // -------------------------------------------------------------------------

@@ -121,16 +121,34 @@ function* fetchJobsSaga() {
 
 function* createJobSaga(action: PayloadAction<Omit<JobRequirement, 'id' | 'createdAt'>>) {
   try {
+    console.log("CREATE JOB PAYLOAD =", action.payload)
+
+    const variables = {
+      title: action.payload.title,
+      requiredSkills: action.payload.requiredSkills,
+      skillIds: action.payload.skills || [],
+      minExperience: Number(action.payload.minExperienceYears),
+      maxExperience: Number(action.payload.maxExperienceYears),
+      requiredEducation: action.payload.requiredEducation,
+      domain: action.payload.domainRequirements,
+      description: action.payload.description,
+    }
+
+    console.log("GRAPHQL VARIABLES =", variables)
+
     const data: { createJobRequirement: JobRequirement } = yield call(
       gqlRequest,
       CREATE_JOB,
-      action.payload
+      variables
     )
+
     yield put(jobsActions.createJobSuccess(data.createJobRequirement))
   } catch (error: any) {
+    console.error(error)
     yield put(jobsActions.fetchJobsFailure(error.message))
   }
 }
+
 
 function* updateJobSaga(action: PayloadAction<JobRequirement>) {
   try {

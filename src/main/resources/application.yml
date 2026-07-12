@@ -6,7 +6,7 @@ spring:
   
   datasource:
     url: jdbc:postgresql://localhost:5432/resume_analyzer
-    username: ${DB_USERNAME:postgres}
+    username: ${DB_USERNAME:divyansh}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   
@@ -39,7 +39,7 @@ spring:
   
   ai:
     openai:
-      base-url: ${LLM_STUDIO_BASE_URL:http://localhost:1234/v1}
+      base-url: ${LLM_STUDIO_BASE_URL:http://127.0.0.1:1234}
       api-key: ${LLM_STUDIO_API_KEY:not-needed}
       chat:
         options:

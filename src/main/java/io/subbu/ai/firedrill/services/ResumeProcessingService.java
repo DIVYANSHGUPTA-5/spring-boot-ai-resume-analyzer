@@ -32,6 +32,7 @@ public class ResumeProcessingService {
     private final EmbeddingService embeddingService;
     private final CandidateRepository candidateRepository;
     private final ProcessTrackerRepository trackerRepository;
+    private final CandidateProfileEnrichmentService enrichmentService;
 
     /**
      * Process a single resume file asynchronously.
@@ -239,6 +240,9 @@ public class ResumeProcessingService {
 
         candidate = candidateRepository.save(candidate);
         log.info("Candidate saved: {} (ID: {})", candidate.getName(), candidate.getId());
+
+        // Extract social profiles and save pending records
+        enrichmentService.extractAndCreatePendingProfiles(candidate, resumeContent, analysisResponse);
 
         // Step 4: Generate embeddings
         embeddingService.generateAndStoreEmbeddings(candidate, resumeContent);

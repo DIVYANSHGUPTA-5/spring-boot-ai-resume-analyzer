@@ -7,6 +7,7 @@ import io.subbu.ai.firedrill.entities.JobRequirement;
 import io.subbu.ai.firedrill.repos.CandidateExternalProfileRepository;
 import io.subbu.ai.firedrill.repos.CandidateRepository;
 import io.subbu.ai.firedrill.services.enrichers.ProfileEnricher;
+import io.subbu.ai.firedrill.models.ResumeAnalysisResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,13 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class CandidateProfileEnrichmentService {
+
+    private static final java.util.regex.Pattern GITHUB_PATTERN = 
+        java.util.regex.Pattern.compile("\\b(?:https?://)?(?:www\\.)?github\\.com/([a-zA-Z0-9._\\-]+)\\b", java.util.regex.Pattern.CASE_INSENSITIVE);
+    private static final java.util.regex.Pattern LINKEDIN_PATTERN = 
+        java.util.regex.Pattern.compile("\\b(?:https?://)?(?:www\\.)?linkedin\\.com/(?:in|pub|profile)/([a-zA-Z0-9._\\-]+)\\b", java.util.regex.Pattern.CASE_INSENSITIVE);
+    private static final java.util.regex.Pattern TWITTER_PATTERN = 
+        java.util.regex.Pattern.compile("\\b(?:https?://)?(?:www\\.)?(?:twitter\\.com|x\\.com)/([a-zA-Z0-9._\\-]+)\\b", java.util.regex.Pattern.CASE_INSENSITIVE);
 
     private final CandidateExternalProfileRepository externalProfileRepository;
     private final CandidateRepository candidateRepository;
@@ -343,4 +351,83 @@ public class CandidateProfileEnrichmentService {
 
     private static boolean present(String s) { return s != null && !s.isBlank(); }
     private static String nullSafe(String s) { return s != null ? s : ""; }
+
+    /**
+     * Extracts social profiles from resume text and LLM analysis results, and stores them as PENDING profiles.
+     */
+    @Transactional
+    public void extractAndCreatePendingProfiles(Candidate candidate, String resumeContent, ResumeAnalysisResponse response) {
+        log.info("Extracting social profile links from resume for candidate: {}", candidate.getName());
+        
+        // Find GitHub URL
+        String githubUrl = findUrl(resumeContent, GITHUB_PATTERN, "https://github.com/");
+        if (githubUrl == null && response != null && response.getGitHubUrl() != null && !response.getGitHubUrl().isBlank()) {
+            githubUrl = formatUrl(response.getGitHubUrl(), "https://github.com/");
+        }
+        if (githubUrl != null) {
+            saveOrUpdatePendingProfile(candidate, ExternalProfileSource.GITHUB, githubUrl);
+        }
+
+        // Find LinkedIn URL
+        String linkedinUrl = findUrl(resumeContent, LINKEDIN_PATTERN, "https://www.linkedin.com/in/");
+        if (linkedinUrl == null && response != null && response.getLinkedInUrl() != null && !response.getLinkedInUrl().isBlank()) {
+            linkedinUrl = formatUrl(response.getLinkedInUrl(), "https://www.linkedin.com/in/");
+        }
+        if (linkedinUrl != null) {
+            saveOrUpdatePendingProfile(candidate, ExternalProfileSource.LINKEDIN, linkedinUrl);
+        }
+
+        // Find Twitter/X URL
+        String twitterUrl = findUrl(resumeContent, TWITTER_PATTERN, "https://x.com/");
+        if (twitterUrl == null && response != null && response.getTwitterUrl() != null && !response.getTwitterUrl().isBlank()) {
+            twitterUrl = formatUrl(response.getTwitterUrl(), "https://x.com/");
+        }
+        if (twitterUrl != null) {
+            saveOrUpdatePendingProfile(candidate, ExternalProfileSource.TWITTER, twitterUrl);
+        }
+    }
+
+    private String findUrl(String text, java.util.regex.Pattern pattern, String prefix) {
+        if (text == null || text.isBlank()) return null;
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            String username = matcher.group(1);
+            return prefix + username;
+        }
+        return null;
+    }
+
+    private String formatUrl(String url, String defaultPrefix) {
+        if (url == null || url.isBlank()) return null;
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            return url;
+        }
+        // If it's just a username
+        if (!url.contains(".")) {
+            return defaultPrefix + url;
+        }
+        return "https://" + url;
+    }
+
+    private void saveOrUpdatePendingProfile(Candidate candidate, ExternalProfileSource source, String url) {
+        Optional<CandidateExternalProfile> existing = 
+            externalProfileRepository.findByCandidateIdAndSource(candidate.getId(), source);
+        if (existing.isEmpty()) {
+            CandidateExternalProfile profile = CandidateExternalProfile.builder()
+                .candidate(candidate)
+                .source(source)
+                .profileUrl(url)
+                .status("PENDING")
+                .build();
+            externalProfileRepository.save(profile);
+            log.info("Saved pending {} profile with URL: {}", source, url);
+        } else {
+            CandidateExternalProfile profile = existing.get();
+            if (profile.getProfileUrl() == null || profile.getProfileUrl().isBlank()) {
+                profile.setProfileUrl(url);
+                externalProfileRepository.save(profile);
+                log.info("Updated existing {} profile with URL: {}", source, url);
+            }
+        }
+    }
 }

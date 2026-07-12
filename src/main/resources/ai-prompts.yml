@@ -13,9 +13,12 @@ ai:
 
         Please provide a JSON response with the following structure:
         {
-          "name": "Candidate's full name",
-          "email": "Email address",
-          "mobile": "Phone number",
+          "name": "Candidate's full name. Look at the top of the resume. Avoid using placeholder names or file names.",
+          "email": "The candidate's primary email address (e.g. name@domain.com). Extract directly from the resume contact section. Do not invent or include placeholders.",
+          "mobile": "The candidate's phone/mobile number. Extract it exactly as listed, including country code if present. Clean up spaces/dashes.",
+          "gitHubUrl": "Candidate's GitHub profile URL if found in the resume (e.g. https://github.com/username), otherwise null",
+          "linkedInUrl": "Candidate's LinkedIn profile URL if found in the resume (e.g. https://linkedin.com/in/username), otherwise null",
+          "twitterUrl": "Candidate's Twitter/X profile URL if found in the resume (e.g. https://x.com/username or https://twitter.com/username), otherwise null",
           "experienceSummary": "Brief summary of work experience (2-3 sentences)",
           "skills": "MUST be a plain string with comma-separated values e.g. Java, Spring Boot, AWS",
           "domainKnowledge": "MUST be a plain string with comma-separated domains e.g. Fintech, Cloud",
@@ -102,3 +105,4 @@ ai:
         - recommendation must be exactly one of: Strong Match, Good Match, Partial Match, No Match.
         - If external profile data is provided in the enrichedSection, incorporate it to improve accuracy.
         - Respond ONLY with valid JSON — no additional text, no markdown, no code fences.
+  

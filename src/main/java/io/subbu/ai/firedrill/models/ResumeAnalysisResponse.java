@@ -63,4 +63,19 @@ public class ResumeAnalysisResponse {
      * Confidence score of the analysis (0-1)
      */
     private Double confidenceScore;
+
+    /**
+     * Extracted GitHub profile URL
+     */
+    private String gitHubUrl;
+
+    /**
+     * Extracted LinkedIn profile URL
+     */
+    private String linkedInUrl;
+
+    /**
+     * Extracted Twitter/X profile URL
+     */
+    private String twitterUrl;
 }

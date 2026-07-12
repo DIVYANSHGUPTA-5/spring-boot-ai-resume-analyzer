@@ -41,6 +41,9 @@ class ResumeJobProcessorTest {
     @Mock
     private JobQueueService jobQueueService;
 
+    @Mock
+    private CandidateProfileEnrichmentService enrichmentService;
+
     @InjectMocks
     private ResumeJobProcessor resumeJobProcessor;
 

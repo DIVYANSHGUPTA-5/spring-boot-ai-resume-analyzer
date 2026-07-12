@@ -32,6 +32,7 @@ public class ResumeJobProcessor {
     private final CandidateRepository candidateRepository;
     private final ProcessTrackerRepository trackerRepository;
     private final JobQueueService jobQueueService;
+    private final CandidateProfileEnrichmentService enrichmentService;
 
     /**
      * Process a resume job from the queue.
@@ -122,6 +123,9 @@ public class ResumeJobProcessor {
             candidate = candidateRepository.save(candidate);
             log.info("Candidate saved: jobId={}, candidateId={}, name={}", 
                      jobId, candidate.getId(), candidate.getName());
+
+            // Extract social profiles and save pending records
+            enrichmentService.extractAndCreatePendingProfiles(candidate, resumeContent, analysisResponse);
 
             // Send heartbeat after saving candidate
             jobQueueService.updateHeartbeat(jobId);

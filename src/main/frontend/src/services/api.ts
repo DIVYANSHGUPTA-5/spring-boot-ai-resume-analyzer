@@ -6,7 +6,15 @@ const api = axios.create({
     'Content-Type': 'multipart/form-data',
   },
 })
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('accessToken')
 
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+
+  return config
+})
 export interface UploadResponse {
   trackerId: string
   message: string

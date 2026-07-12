@@ -44,6 +44,15 @@ class CandidateMatchingServiceTest {
     @Mock
     private AIService aiService;
 
+    @Mock
+    private MatchAuditService matchAuditService;
+
+    @Mock
+    private CandidateProfileEnrichmentService enrichmentService;
+
+    @Mock
+    private io.subbu.ai.firedrill.config.EnrichmentProperties enrichmentProps;
+
     @InjectMocks
     private CandidateMatchingService candidateMatchingService;
 
