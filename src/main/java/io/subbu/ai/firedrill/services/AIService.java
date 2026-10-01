@@ -69,6 +69,7 @@ public class AIService {
         log.info("Analysing resume: {}", request.getFilename());
         try {
             String userPrompt = prompts.getResumeAnalysis().render(
+                    "currentDate", java.time.LocalDate.now().toString(),
                     "resumeContent", request.getResumeContent()
             );
 
@@ -116,6 +117,7 @@ public class AIService {
                     "academicBackground", nullSafe(request.getAcademicBackground()),
                     "yearsOfExperience",  String.valueOf(request.getYearsOfExperience() != null ? request.getYearsOfExperience() : 0),
                     "enrichedSection",    enrichedSection,
+                    "retrievedSection",   buildRetrievedSection(request.getRetrievedResumeContext()),
                     "jobTitle",           nullSafe(request.getJobTitle()),
                     "jobDescription",     nullSafe(request.getJobDescription()),
                     "requiredSkills",     nullSafe(request.getRequiredSkills()),
@@ -132,6 +134,7 @@ public class AIService {
                     /* maxTokens  */ 2000
             );
 
+            log.debug("Candidate-matching prompt sent to LLM:\n{}", userPrompt);
             log.debug("LLM candidate-matching raw response: {}", rawResponse);
             return parseMatchingResponse(rawResponse);
         } catch (LlmServiceException e) {
@@ -319,7 +322,9 @@ public class AIService {
     private CandidateMatchResponse parseMatchingResponse(String rawResponse) {
         try {
             String json = extractJson(rawResponse);
-            return objectMapper.readValue(json, CandidateMatchResponse.class);
+            CandidateMatchResponse response = objectMapper.readValue(json, CandidateMatchResponse.class);
+            applyWeightedMatchScore(response);
+            return response;
         } catch (LlmServiceException e) {
             log.warn("LLM unavailable during candidate matching — returning fallback. Reason: {}", e.getMessage());
         } catch (Exception e) {
@@ -336,6 +341,25 @@ public class AIService {
                 .gaps("")
                 .recommendation("Error in Analysis")
                 .build();
+    }
+
+    /**
+     * The prompt asks the LLM for matchScore = skills 40% + experience 25% + education 20% + domain 15%,
+     * but small models do not compute this reliably. Recompute it from the sub-scores so the stored
+     * score (used for shortlisting and ranking) is consistent with them.
+     */
+    private void applyWeightedMatchScore(CandidateMatchResponse r) {
+        if (r.getSkillsScore() == null || r.getExperienceScore() == null
+                || r.getEducationScore() == null || r.getDomainScore() == null) {
+            return;
+        }
+        double weighted = r.getSkillsScore() * 0.40 + r.getExperienceScore() * 0.25
+                + r.getEducationScore() * 0.20 + r.getDomainScore() * 0.15;
+        double computed = Math.max(0.0, Math.min(100.0, Math.round(weighted * 10) / 10.0));
+        if (r.getMatchScore() == null || Math.abs(r.getMatchScore() - computed) > 0.5) {
+            log.info("Adjusting LLM matchScore {} to weighted sub-score average {}", r.getMatchScore(), computed);
+        }
+        r.setMatchScore(computed);
     }
 
     /**
@@ -380,8 +404,26 @@ public class AIService {
     // Private helpers — misc
     // -------------------------------------------------------------------------
 
+    /**
+     * True when the response is the placeholder returned because the LLM was unavailable or
+     * returned unparseable output, so callers do not persist it as a real candidate.
+     */
+    public static boolean isFallback(ResumeAnalysisResponse r) {
+        return r == null || ("Unknown".equals(r.getName())
+                && r.getConfidenceScore() != null && r.getConfidenceScore() == 0.0
+                && (r.getSkills() == null || r.getSkills().isEmpty()));
+    }
+
     private static String nullSafe(String value) {
         return value != null ? value : "";
+    }
+
+    private static String buildRetrievedSection(String retrievedResumeContext) {
+        if (retrievedResumeContext == null || retrievedResumeContext.isBlank()) {
+            return "";
+        }
+        return "\nRELEVANT RESUME EXCERPTS (retrieved from the candidate's resume by semantic search for this job):\n"
+                + retrievedResumeContext + "\n";
     }
 
     private static String buildEnrichedSection(String enrichedProfileContext) {

@@ -78,6 +78,35 @@ public interface ResumeEmbeddingRepository extends JpaRepository<ResumeEmbedding
             @Param("limit") Integer limit);
 
     /**
+     * Projection for a retrieved chunk together with its cosine similarity to the query.
+     */
+    interface RetrievedChunk {
+        String getContentChunk();
+        String getSectionType();
+        Double getSimilarity();
+    }
+
+    /**
+     * RAG retrieval: the chunks of ONE candidate closest to the query embedding.
+     * Similarity is cosine similarity (1 - cosine distance). Zero-norm vectors are skipped
+     * because cosine distance is undefined (NaN) for them.
+     *
+     * @param candidateId Candidate UUID (as string)
+     * @param embedding   Query vector in pgvector text format
+     * @param limit       Maximum number of chunks (top-K)
+     */
+    @Query(value = "SELECT content_chunk AS \"contentChunk\", section_type AS \"sectionType\", " +
+                   "1 - (embedding <=> CAST(:embedding AS vector)) AS \"similarity\" " +
+                   "FROM resume_embeddings " +
+                   "WHERE candidate_id = CAST(:candidateId AS uuid) AND vector_norm(embedding) > 0 " +
+                   "ORDER BY embedding <=> CAST(:embedding AS vector) " +
+                   "LIMIT :limit",
+           nativeQuery = true)
+    List<RetrievedChunk> findTopChunksForCandidate(@Param("candidateId") String candidateId,
+                                                   @Param("embedding") String embedding,
+                                                   @Param("limit") Integer limit);
+
+    /**
      * Delete all embeddings for a candidate
      * 
      * @param candidate The candidate whose embeddings should be deleted

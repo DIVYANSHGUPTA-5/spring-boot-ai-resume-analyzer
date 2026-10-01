@@ -94,6 +94,10 @@ public class ResumeJobProcessor {
                     .build();
 
             ResumeAnalysisResponse analysisResponse = aiService.analyzeResume(analysisRequest);
+            if (AIService.isFallback(analysisResponse)) {
+                throw new IllegalStateException("AI analysis failed for " + filename
+                        + " (LLM unavailable or invalid response); resume not saved");
+            }
             log.info("AI analysis complete: jobId={}, candidateName={}, skillsPresent={}", 
                      jobId, analysisResponse.getName(), 
                      analysisResponse.getSkills() != null && !analysisResponse.getSkills().isEmpty());

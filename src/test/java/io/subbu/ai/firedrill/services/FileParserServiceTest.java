@@ -85,30 +85,26 @@ class FileParserServiceTest {
     }
 
     @Test
-    @DisplayName("Should handle empty PDF file")
+    @DisplayName("Should reject PDF file with no extractable text")
     void shouldHandleEmptyPdf() throws IOException {
         // Given
         byte[] emptyPdfData = createEmptyPdfFile();
 
-        // When
-        String extractedText = fileParserService.extractText(emptyPdfData, "empty.pdf");
-
-        // Then
-        assertThat(extractedText).isNotNull();
-        assertThat(extractedText.trim()).isEmpty();
+        // When / Then
+        assertThatThrownBy(() -> fileParserService.extractText(emptyPdfData, "empty.pdf"))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("No text could be extracted");
     }
 
     @Test
-    @DisplayName("Should handle empty DOCX file")
+    @DisplayName("Should reject DOCX file with no extractable text")
     void shouldHandleEmptyDocx() throws IOException {
         // Given
         byte[] emptyDocxData = createMockDocxFile(new String[]{});
 
-        // When
-        String extractedText = fileParserService.extractText(emptyDocxData, "empty.docx");
-
-        // Then
-        assertThat(extractedText).isNotNull();
+        // When / Then
+        assertThatThrownBy(() -> fileParserService.extractText(emptyDocxData, "empty.docx"))
+                .isInstanceOf(IOException.class);
     }
 
     @Test

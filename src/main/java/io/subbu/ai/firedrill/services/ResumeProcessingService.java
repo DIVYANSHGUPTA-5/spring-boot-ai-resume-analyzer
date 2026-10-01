@@ -106,7 +106,9 @@ public class ResumeProcessingService {
                 "Completed: %d successful, %d failed out of %d total",
                 processedFiles, failedFiles, totalFiles
             );
-            tracker.updateStatus(ProcessStatus.COMPLETED, message);
+            // If every file failed, do not report the batch as COMPLETED
+            tracker.updateStatus(processedFiles == 0 && failedFiles > 0
+                    ? ProcessStatus.FAILED : ProcessStatus.COMPLETED, message);
 
         } catch (Exception e) {
             log.error("Error processing batch upload", e);
@@ -185,7 +187,9 @@ public class ResumeProcessingService {
                 "Completed: %d successful, %d failed out of %d total",
                 processedFiles, failedFiles, totalFiles
             );
-            tracker.updateStatus(ProcessStatus.COMPLETED, message);
+            // If every file failed, do not report the batch as COMPLETED
+            tracker.updateStatus(processedFiles == 0 && failedFiles > 0
+                    ? ProcessStatus.FAILED : ProcessStatus.COMPLETED, message);
 
         } catch (IOException e) {
             log.error("Error processing ZIP file: {}", filename, e);
@@ -218,6 +222,10 @@ public class ResumeProcessingService {
                 .build();
 
         ResumeAnalysisResponse analysisResponse = aiService.analyzeResume(analysisRequest);
+        if (AIService.isFallback(analysisResponse)) {
+            throw new IllegalStateException("AI analysis failed for " + filename
+                    + " (LLM unavailable or invalid response); resume not saved");
+        }
         log.debug("Resume analyzed for: {}", analysisResponse.getName());
 
         tracker.updateStatus(ProcessStatus.RESUME_ANALYZED, "Resume analyzed");

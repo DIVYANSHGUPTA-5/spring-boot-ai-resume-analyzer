@@ -34,12 +34,18 @@ public class FileParserService {
         
         String extension = getFileExtension(filename).toLowerCase();
         
-        return switch (extension) {
+        String text = switch (extension) {
             case ".pdf" -> extractFromPdf(fileData);
             case ".docx" -> extractFromDocx(fileData);
             case ".doc" -> extractFromDoc(fileData);
             default -> throw new IllegalArgumentException("Unsupported file format: " + extension);
         };
+
+        if (text == null || text.isBlank()) {
+            throw new IOException("No text could be extracted from " + filename
+                    + " (empty or scanned/image-only document)");
+        }
+        return text;
     }
 
     /**

@@ -31,6 +31,12 @@ public class EmbeddingService {
     @Value("${app.embedding.batch-size:10}")
     private Integer batchSize;
 
+    @Value("${app.rag.top-k:3}")
+    private Integer ragTopK;
+
+    @Value("${app.rag.min-similarity:0.5}")
+    private double ragMinSimilarity;
+
     /**
      * Generate embeddings for resume content and store in vector database.
      * Chunks the text into manageable segments for better semantic understanding.
@@ -103,6 +109,31 @@ public class EmbeddingService {
         
         List<float[]> embeddings = generateEmbeddingsWithFallback(List.of(queryText));
         return vectorToString(embeddings.get(0));
+    }
+
+    /**
+     * RAG retrieval: embed the query and return the candidate's most similar resume chunks
+     * (pgvector cosine search), keeping only those at or above the configured similarity threshold.
+     *
+     * @param candidateId Candidate whose chunks are searched
+     * @param queryText   Retrieval query (e.g. the job requirement text)
+     * @return chunks ordered by similarity (best first); empty when nothing is relevant
+     */
+    public List<ResumeEmbeddingRepository.RetrievedChunk> retrieveRelevantChunks(java.util.UUID candidateId,
+                                                                                 String queryText) {
+        if (queryText == null || queryText.isBlank()) {
+            return List.of();
+        }
+        String queryVector = generateQueryEmbedding(queryText);
+        List<ResumeEmbeddingRepository.RetrievedChunk> hits =
+                embeddingRepository.findTopChunksForCandidate(candidateId.toString(), queryVector, ragTopK);
+        List<ResumeEmbeddingRepository.RetrievedChunk> relevant = hits.stream()
+                .filter(h -> h.getSimilarity() != null && h.getSimilarity() >= ragMinSimilarity)
+                .toList();
+        log.info("[RAG] Candidate {}: {} chunk(s) retrieved, {} above similarity {} (best: {})",
+                candidateId, hits.size(), relevant.size(), ragMinSimilarity,
+                hits.isEmpty() ? "n/a" : String.format("%.3f", hits.get(0).getSimilarity()));
+        return relevant;
     }
 
     /**

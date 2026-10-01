@@ -268,6 +268,43 @@ class EmbeddingServiceTest {
     }
 
     @Test
+    @DisplayName("Should retrieve only chunks above the similarity threshold using the query embedding")
+    void shouldRetrieveRelevantChunksAboveThreshold() {
+        // Given
+        org.springframework.test.util.ReflectionTestUtils.setField(embeddingService, "ragTopK", 3);
+        org.springframework.test.util.ReflectionTestUtils.setField(embeddingService, "ragMinSimilarity", 0.5);
+        when(embeddingModel.embedForResponse(anyList())).thenReturn(
+                new EmbeddingResponse(List.of(new Embedding(createMockEmbedding(), 0))));
+        ResumeEmbeddingRepository.RetrievedChunk good = chunk("Built Spring Boot APIs", "experience", 0.72);
+        ResumeEmbeddingRepository.RetrievedChunk weak = chunk("Hobbies", "general", 0.31);
+        when(embeddingRepository.findTopChunksForCandidate(eq(mockCandidate.getId().toString()), anyString(), eq(3)))
+                .thenReturn(List.of(good, weak));
+
+        // When
+        List<ResumeEmbeddingRepository.RetrievedChunk> result =
+                embeddingService.retrieveRelevantChunks(mockCandidate.getId(), "Java developer");
+
+        // Then
+        assertThat(result).containsExactly(good);
+        verify(embeddingModel).embedForResponse(List.of("Java developer"));
+    }
+
+    @Test
+    @DisplayName("Should return no chunks and skip embedding for a blank query")
+    void shouldReturnNoChunksForBlankQuery() {
+        assertThat(embeddingService.retrieveRelevantChunks(mockCandidate.getId(), "  ")).isEmpty();
+        verifyNoInteractions(embeddingModel, embeddingRepository);
+    }
+
+    private ResumeEmbeddingRepository.RetrievedChunk chunk(String text, String section, double similarity) {
+        ResumeEmbeddingRepository.RetrievedChunk c = mock(ResumeEmbeddingRepository.RetrievedChunk.class);
+        lenient().when(c.getContentChunk()).thenReturn(text);
+        lenient().when(c.getSectionType()).thenReturn(section);
+        lenient().when(c.getSimilarity()).thenReturn(similarity);
+        return c;
+    }
+
+    @Test
     @DisplayName("Should handle empty resume content")
     void shouldHandleEmptyResumeContent() {
         // Given

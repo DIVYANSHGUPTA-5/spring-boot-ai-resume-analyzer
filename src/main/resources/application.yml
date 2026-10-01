@@ -72,6 +72,12 @@ app:
     dimension: 768
     batch-size: 10
   
+  # RAG: resume chunks retrieved by pgvector similarity search and passed to the matching LLM
+  rag:
+    enabled: ${RAG_ENABLED:true}
+    top-k: ${RAG_TOP_K:3}
+    min-similarity: ${RAG_MIN_SIMILARITY:0.5}
+
   processing:
     thread-pool-size: 5
     max-retries: 3

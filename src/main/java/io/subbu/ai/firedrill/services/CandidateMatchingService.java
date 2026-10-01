@@ -36,6 +36,12 @@ public class CandidateMatchingService {
     private final AIService aiService;
     private final MatchAuditService matchAuditService;
     private final CandidateProfileEnrichmentService enrichmentService;
+    private final EmbeddingService embeddingService;
+
+    private static final int MAX_EXCERPT_CHARS = 1200;
+
+    @org.springframework.beans.factory.annotation.Value("${app.rag.enabled:true}")
+    private boolean ragEnabled;
     private final EnrichmentProperties enrichmentProps;
 
     /**
@@ -284,8 +290,53 @@ public class CandidateMatchingService {
                 .minExperienceYears(job.getMinExperienceYears())
                 .maxExperienceYears(job.getMaxExperienceYears())
                 .enrichedProfileContext(enrichedContext)
+                .retrievedResumeContext(retrieveResumeContext(candidate, job))
                 .build();
-        return aiService.matchCandidate(matchRequest);
+        CandidateMatchResponse response = aiService.matchCandidate(matchRequest);
+        if ("Error in Analysis".equals(response.getRecommendation())) {
+            // Do not persist the placeholder: it would show a misleading 0 score and overwrite a real one.
+            throw new IllegalStateException("AI matching failed for candidate " + candidate.getId()
+                    + " and job " + job.getId() + " (LLM unavailable or invalid response)");
+        }
+        return response;
+    }
+
+    /**
+     * RAG retrieval step: embed the job requirement, run a pgvector similarity search over the
+     * candidate's stored resume chunks and format the top chunks as prompt context.
+     * Never blocks matching: returns null (matching proceeds without excerpts) when RAG is
+     * disabled, nothing relevant is found, or retrieval fails.
+     */
+    private String retrieveResumeContext(Candidate candidate, JobRequirement job) {
+        if (!ragEnabled) {
+            return null;
+        }
+        try {
+            String query = java.util.stream.Stream.of(
+                            job.getTitle(), job.getRequiredSkills(), job.getRequiredEducation(),
+                            job.getDomainRequirements(), job.getDescription())
+                    .filter(v -> v != null && !v.isBlank())
+                    .collect(java.util.stream.Collectors.joining(". "));
+            var chunks = embeddingService.retrieveRelevantChunks(candidate.getId(), query);
+            if (chunks.isEmpty()) {
+                return null;
+            }
+            StringBuilder sb = new StringBuilder();
+            int n = 1;
+            for (var c : chunks) {
+                String text = c.getContentChunk().trim();
+                if (text.length() > MAX_EXCERPT_CHARS) {
+                    text = text.substring(0, MAX_EXCERPT_CHARS) + "...";
+                }
+                sb.append(String.format("[Excerpt %d | section: %s | similarity: %.2f]%n%s%n%n",
+                        n++, c.getSectionType(), c.getSimilarity(), text));
+            }
+            return sb.toString().trim();
+        } catch (Exception e) {
+            log.warn("[RAG] Retrieval failed for candidate {} — matching without resume excerpts: {}",
+                    candidate.getId(), e.getMessage());
+            return null;
+        }
     }
 
     /**

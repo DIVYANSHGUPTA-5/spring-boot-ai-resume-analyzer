@@ -80,4 +80,9 @@ public class CandidateMatchRequest {
      * Included when available to improve match accuracy.
      */
     private String enrichedProfileContext;
+
+    /**
+     * Resume excerpts retrieved by vector similarity search for this job (RAG context), or null
+     */
+    private String retrievedResumeContext;
 }
